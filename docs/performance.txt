@@ -1,0 +1,25 @@
+Since we will be doing text searches, it would be time consuming to do an iterative search once we have a large number of 
+cached entries.
+
+To improve search times, we should implement the cache in a binary tree.   If we can normalise it also, that would be a 
+benefit.
+
+Instead of merely an array of objects, we would 
+
+
+Alternative methods.
+
+ * We could seperate the list into 256 different lists.  When we are searching for a name, 
+   we first do an 8-bit CRC, and use that 8-bit value to indicate which list the name would 
+   be in.  Then we would have to do an iterative or binary search on that.  If we are already 
+   doing a binary search, this operation  would probably not improve much.  With large lists
+   it would probably improve searching through a large list, but only one level.
+
+ * If we are doing more searches than sets, then we could ensure that the list is in 
+   alphabetical order.  Then when doing searches, we can merely do a half-search to 
+   find the entry.  A half search means check the entry in the middle, if the one we 
+   are looking for is less, then we ignore the last half.  Then we half it again, and 
+   so on.  Using this method, you normally find what you are looking for within 8 checks.
+
+
+
