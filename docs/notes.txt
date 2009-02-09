@@ -1,0 +1,22 @@
+The dnscache library is intended to provide a simple cache storage of dns lookups.   
+It does not actually perform any lookups itself, that is outside of the scope of this project.
+
+Lookups can be done using evdns, or the blocking socket routines.
+
+The cache is can be initialised and empty, or a file can be imported that populates the cache.
+
+The cache will need to observer TTL's that are provided with results.
+
+Routines we will need.
+
+	init - Initialise the cache structure. will be empty.
+	free - Prepare the cache structure to be de-allocated.  Free's all memory that was created for it.
+
+	load - Load cache entries from a specified file.  File is a text based csv.
+	save - save the cached entries to a file so it can be loaded later.
+
+	get - Check the cache for an entry.  
+	set - Set details for an entry (replace if entry already exists)
+
+	pack - where possible reduce memory that is used by the cache.  remove expired items
+
