@@ -22,9 +22,6 @@ $(LIBFILE): libdnscache.o
 	gcc -shared -Wl,-soname,$(SONAME) -o $@ $^
 
 
-lib-test: lib-test.c $(REQH) /usr/include/dnscache.h
-	gcc lib-test.c -o $@ -ldnscache -lexpbuf -lparseurl -levent
-
 install: $(LIBFILE) dnscache.h
 	cp dnscache.h /usr/include/
 	cp $(LIBFILE) /usr/lib/

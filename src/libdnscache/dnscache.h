@@ -1,5 +1,4 @@
 /*
-
 	libdnscache
 	(c) Copyright 2009, Hyper-Active Systems, Australia
 	http://hyper-active.com.au/libdnscache
@@ -21,13 +20,13 @@
 
 
 
-
 typedef struct {
-	char *host;
-	int expires;
-	in_addr_t *list;
-	int count;
-	void *a, *b;
+	void **list;			// list of objects...
+	int entries;			// number of objects in the list.
+	void *lru, *mru;	// least recently used, and most recently used.
+
+	int current;			// current amount of memory used.
+	int maxmem;				// max amount of memory to use... when current reaches this limit, start using the lru.
 } dnscache_t;
 
 
@@ -37,16 +36,19 @@ void dnscache_init(dnscache_t *cache);
 // 	Prepare the cache structure to be de-allocated.  Free's all memory that was created for it.
 void dnscache_free(dnscache_t *cache);
 
-// 	Load cache entries from a specified file.  File is a text based csv.
+// Set the maximum amount of memory that will be used by the cache (not including memory chunk over-head.)
+void dnscache_setmemlimit(dnscache_t *cache, int limit);
+
+// Load cache entries from a specified file.  File is a text based csv.
 void dnscache_load(dnscache_t *cache, char *filepath);
 
-// 	Save the cached entries to a file so it can be loaded later.
+// Save the cached entries to a file so it can be loaded later.
 void dnscache_save(dnscache_t *cache, char *filepath);
 
-// 	Check the cache for an entry.
+// Check the cache for an entry.
 int dnscache_get(dnscache_t *cache, char *host, in_addr_t **addrlist);
 
-// 	Set details for an entry (replace if entry already exists)
+// Set details for an entry (replace if entry already exists)
 void dnscache_set(dnscache_t *cache, char *host, int ttl, int count, in_addr_t *addrlist);
 
 // 	pack - where possible reduce memory that is used by the cache.  remove expired items
