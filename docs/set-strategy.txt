@@ -1,0 +1,9 @@
+The strategy used when setting an entry will be.
+Stop when resolved.
+
+ 1.  Search list for existing entry.
+ 2.  Use free entry from free list.
+ 3.  Allocate memory.
+ 4.  Choose least recently used (from lru list)
+
+

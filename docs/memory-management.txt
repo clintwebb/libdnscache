@@ -1,0 +1,29 @@
+---------------------
+Memory efficiency.
+
+Some memory performance enhancements should be considered for serious usages of this system.  Each cache entry would have 
+a small string, and a small array created.  Each cache entry itself is rather small, so we will end up created lots and 
+lots of small memory chunks.
+
+To improve this, we could allocate large chunks of memory for different sized strings and use those instead.  This will 
+add a little extra processing, but should be able to use less memory.  The same could be done for the address lists.  
+This way instead of allocating 3 chunks of memory for each cache entry, we would use part of memory already allocated...
+
+For very light usage, this is a bit of overkill, but would not be much extra overhead.  It will be necessary for high 
+usage systems though.
+
+For hostnames, the length of the hostname will be determined and then bitshifted right by one, which will effectively 
+half the number.  For example, rhokz.com is 9 chars long.  So after bitshifting, we will end up with index number 4.  We 
+will have an entire binary tree of cache entries starting at that one entry.
+
+All the dns entry objects will actually be part of a block of memory, so we wont allocate memory for each entry, but will 
+intead allocate a chunk of memory for all objects.   
+
+So in the end we will have a large number of memory pools.
+
+We will have 128 arrays of hostnames.
+We will have 128 arrays of dnsentry_t's.
+We will have an unknown number of arrays of in_addr_t.
+
+When new entries are being set, we will be increasing the size of each of those arrays, which could end up being worse 
+than if we were just allocating memory when required.

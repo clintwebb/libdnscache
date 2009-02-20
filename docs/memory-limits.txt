@@ -1,0 +1,11 @@
+We will need to have the ability to limit the amount of resources that we will use.   
+
+This would likely be the maximum number of kilobytes that the library uses for the cache.
+
+To enforce these limits, we will need to either keep track of the memory used, or be able to calculate how much is used, 
+and try not to go over the limit.
+
+When we have reached our limit, we would purge out entries that are the least used.
+
+
+
