@@ -1,0 +1,5 @@
+In order to re-use the oldest objects, when our memory gets full, we will keep a linked-list.   This means that when we 
+use an entry, it will be added to the mru (head) of the list.   Leaving the least used objects at the lru (tail).
+
+Therefore, when an object has a next and prev point.  Next is pointing towards the mru, and prev is pointing to the lru.
+
