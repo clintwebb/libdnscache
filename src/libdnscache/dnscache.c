@@ -1,7 +1,7 @@
 /*
 
-	libevhttpget
-	(c) Copyright Hyper-Active Systems, Australia
+	libdnscache
+	(c) 2008,2009. Copyright Hyper-Active Systems, Australia
 
 	Contact:
 		Clinton Webb
@@ -13,21 +13,9 @@
 #include "dnscache.h"
 
 #include <assert.h>
-// #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <unistd.h>
-// 
-// #include <sys/types.h>
-// #include <sys/socket.h>
-// #include <arpa/inet.h>
-// #include <netdb.h>
-// 
-// #include <event.h>
-// #include <evdns.h>
-// #include <parseurl.h>
-
 
 
 typedef struct {
@@ -199,23 +187,35 @@ static int dnscache_locate
 	
 	while (index < 0 && (min <= max)) {
 	
+		printf("locate: loop.  index=%d, min=%d, max=%d\n", index, min, max);
+	
 		curr = min + ((max-min)/2);
+		assert(curr < cache->entries);
+		assert(curr >= 0);
+
 		assert(cache->list);
 		assert(cache->list[curr]);
 
 		tmp = cache->list[curr];
 		assert(tmp->host);
+
+		printf("locate: curr=%d, host='%s')\n", curr, tmp->host);
+
+		printf("locate: comparing '%s' and '%s'\n", tmp->host, host);
 		check = strcasecmp(tmp->host, host);
 		if (check == 0)			{ index = curr; }
-		else if (check < 0)	{ max = curr - 1; }
-		else								{ min = curr + 1; }
+		else if (check > 0)		{ max = curr - 1; }
+		else					{ min = curr + 1; }
+
+		printf("locate: check=%d, index=%d, min=%d, max=%d, curr=%d\n", check, index, min, max, curr);
 	}
 
+	printf("locate: returning %d\n", index);
 	return(index);
 }
 
 //-----------------------------------------------------------------------------
-// we need to update this entries LRU.
+// we need to update this entries MRU.
 static void dnscache_setmru(dnscache_t *cache, int index)
 {
 	dnsentry_t *next, *prev, *tmp;
@@ -231,28 +231,39 @@ static void dnscache_setmru(dnscache_t *cache, int index)
 
 	entry = cache->list[index];
 	assert(entry);
+	assert(entry->host);
 
-	prev = entry->prev;
-	if (cache->lru == entry && prev != NULL) {
-		cache->lru = prev;
-		prev->next = NULL;
-	}
+	printf("setmru: index=%d, host='%s'\n", index, entry->host);
+
 	if (cache->mru != entry) {
 		next = entry->next;
+		prev = entry->prev;
+		
+		// since we are not the mru already, there has to be more than one entry
+		// in this list, and there has to be something that is 'next' in the list.
+		assert(next != NULL);
 
+		// set the mru (head pointer)
 		tmp = cache->mru;
 		cache->mru = entry;
+		tmp->next = entry;
 
-		assert(prev);
-		prev->next = next;
-
-		if (next) {
+		// Check to see if the entry is the lru.
+		if (cache->lru == entry) {
+			printf("setmru, entry is currently LRU.\n");
+			cache->lru = next;
+			next->prev = NULL;
+		}
+		else {
 			next->prev = prev;
 		}
+		
+		if (prev) {
+			prev->next = next;
+		}
 
-		entry->prev = NULL;
-		entry->next = tmp;
-		tmp->prev = entry;
+		entry->next = NULL;
+		entry->prev = tmp;
 	}
 }
 
@@ -304,9 +315,15 @@ static int dnscache_sortentry
 		entry = cache->list[index];
 		assert(entry);
 
+		printf("sort: entry=%d '%s'\n", index, entry->host);
+
 		for (i=0; i < cache->entries && sorted < 0; i++) {
 			tmp = cache->list[i];
 			assert(tmp);
+			assert(tmp->host);
+			assert(entry->host);
+
+			printf("sort: checking %i '%s'\n", i, tmp->host);
 
 			result = strcmp(tmp->host, entry->host);
 			if (result == 0) {
@@ -314,6 +331,9 @@ static int dnscache_sortentry
 			}
 			else if (result > 0) {
 				// we found one that is greater than what we are looking for, so we need to insert before it.
+
+				printf("sort: '%s' greater than '%s'.\n", tmp->host, entry->host);
+				
 				if (i < index) {
 					// the one we are moving is further in the list.
 					sorted = i;
@@ -321,8 +341,11 @@ static int dnscache_sortentry
 						assert(j>=0);
 						assert((j-1)>=i);
 						cache->list[j] = cache->list[j-1];
+						printf("sort: moved %d to %d\n", j-1, j);
 					}
 					cache->list[i] = entry;
+					printf("sort: put entry in slot %d\n", i);
+					sorted=i;
 				}
 				else {
 					// the one we are moving is back.
@@ -330,16 +353,25 @@ static int dnscache_sortentry
 					sorted = i-1;
 					assert(sorted >= 0);
 					for (j=index; j<sorted; j++) {
+						assert(j<cache->entries);
 						cache->list[j] = cache->list[j+1];
+						printf("sort: moved %d to %d\n", j+1, j);
 					}
 					cache->list[sorted] = entry;
+					printf("sort: put entry in slot %d\n", sorted);
 				}
 			}
 		}
+		if (sorted < 0) {
+			assert(index == (cache->entries - 1));
+			sorted = index;
+		}
+	}
+	else {
+		sorted = index;
 	}
 
-	assert((sorted < 0 && cache->mru == cache->lru) || (sorted > 0 && cache->mru != cache->lru && cache->mru && cache->lru));
-
+	printf("sort: sorted=%d\n", sorted);
 	return(sorted);
 }
 
@@ -351,6 +383,7 @@ int dnscache_get
 {
 	dnsentry_t *entry;
 	int index;
+	struct timeval tv;
 	
 	assert(cache);
 	assert(host);
@@ -358,6 +391,7 @@ int dnscache_get
 
 	index = dnscache_locate(cache, host);
 	if (index < 0) {
+		printf("get: didn't find '%s'\n", host);
 		return(0);
 	}
 	else {
@@ -368,14 +402,23 @@ int dnscache_get
 		dnscache_setmru(cache, index);
 
 		entry = cache->list[index];
+		assert(entry->host);
 	
 		// we have the entry we were looking for, now we need to make sure this entry hasn't expired.
-		assert(0);
+		gettimeofday(&tv);
 
-		assert(entry->list);
-		assert(entry->count > 0);
-		*addrlist = entry->list;
-		return(entry->count);
+		if (tv.tv_sec < entry->expires) {
+			assert(entry->list);
+			assert(entry->count > 0);
+			*addrlist = entry->list;
+			return(entry->count);
+		}
+		else {
+			// entry has expired.  We dont do anything with it, because we 
+			// assume that the caller will probably do a dns-lookup and then 
+			// provide us the updated values.
+			return(0);
+		}
 	}
 }
 
@@ -389,13 +432,14 @@ void dnscache_set(
 	in_addr_t *addrlist)
 {
 	int index;
-	int sorted;
 	dnsentry_t *entry = NULL, *tmp;
-	
+	struct timeval tv;
+		
 	assert(cache);
 	assert(host);
 	assert(count > 0);
 	assert(addrlist);
+	assert(ttl > 0);
 	
 	index = dnscache_locate(cache, host);
 	if (index < 0) {
@@ -414,18 +458,27 @@ void dnscache_set(
 			index = cache->entries;
 			cache->list[index] = entry;
 			cache->current += sizeof(void *);
+			cache->entries ++;
 
 			// Set this new entry as the lru.
 			if (cache->lru == NULL) {
 				assert(cache->mru == NULL);
 				cache->lru = entry;
 				cache->mru = entry;
+				assert(entry->next == NULL && entry->prev == NULL);
 			}
 			else {
 				tmp = cache->lru;
-				assert(tmp->next == NULL);
-				tmp->next = entry;
+				assert(tmp->prev == NULL);
+				tmp->prev = entry;
 				cache->lru = entry;
+				entry->next = tmp;
+				
+				assert(entry->prev == NULL);
+				assert(entry->next == tmp);
+				assert(tmp->prev = entry);
+				
+				assert((cache->mru != tmp && tmp->next != NULL) || (cache->mru == tmp && tmp->next == NULL));
 			}
 		}
 		else {
@@ -452,17 +505,22 @@ void dnscache_set(
 		}
 		
 		// find the appropriate spot in the master list.
-		sorted = dnscache_sortentry(cache, index);
+		index = dnscache_sortentry(cache, index);
 	}
 	else {
 		entry = cache->list[index];
 	}
+
+	printf("set: index=%d, entries=%d\n", index, cache->entries);
 
 	assert(index >= 0);
 	assert(index < cache->entries);
 	assert(cache->list);
 	assert(cache->list[index]);
 	assert(entry);
+
+	printf("set: entry->host='%s', list[index]->host='%s'\n", entry->host, ((dnsentry_t *)cache->list[index])->host);
+	
 	assert(entry == cache->list[index]);
 
 	dnscache_setmru(cache, index);
@@ -480,9 +538,11 @@ void dnscache_set(
 
 	// copy the addresses,
 	memcpy(entry->list, addrlist, sizeof(in_addr_t)*count);
-	
-	// set expire time.
-	assert(0);
+
+	// set the expiry of this domain.
+	assert(ttl > 0);
+	gettimeofday(&tv);
+	entry->expires = (tv.tv_sec + ttl);
 }
 
 
